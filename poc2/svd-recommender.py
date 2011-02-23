@@ -4,7 +4,7 @@ User-based recommendation with SVD
 Port of the ruby code presented here:
 http://www.igvita.com/2007/01/15/svd-recommendation-system-in-ruby/
 
-Since I'm not a python expert, refactoring suggestions are appreciated.
+Since I'm not a python expert, refactoring suggestions are appreciated...
 '''
 
 from scipy import *

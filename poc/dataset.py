@@ -9,7 +9,7 @@ def loadGloboCom( path='../data/globocom/bbb' ):
 	# Load data
 	views={}
 	
-	for line in open( path + '/bbb.mar.1000000.data' ):
+	for line in open( path + '/bbb.mar.10000.data' ):
 		
 		try:
 			(ts, video_id, user) = line.strip().split( '\t' )
@@ -24,10 +24,12 @@ def loadGloboCom( path='../data/globocom/bbb' ):
 #
 # remove usuarios que viram menos que MIN videos
 #
-def filterByMinViews( view_data, min=20 ):
+def filterByMinViews( view_data, min=14 ):
 	
 	#Load data
 	filtered_views={}
+	
+	f = open( '../data/globocom/file.txt', 'w' )
 	
 	for u, v in view_data.items():
 		try:
@@ -39,6 +41,26 @@ def filterByMinViews( view_data, min=20 ):
 				
 	
 	return filtered_views
+
+#
+#
+#
+def splitTrainTest (view_data):
+	
+	train_data = {}
+	test_data = {}
+	rating_cnt = {}
+	testcnt = 0
+	
+	for u, v in view_data.items():
+		try:
+			if len(v) > min:
+				filtered_views.setdefault( u, {} )
+				filtered_views[u] = v
+		except:
+			pass	
+	
+	return train_data, test_data
 
 #
 # verifica a distribuicao da quantidade de videos pela quantidade de usuarios
@@ -67,31 +89,14 @@ def arrangeViewedDistributionPerUser ( view_data ):
 	
 	f.close()
 
-#
-# carrega o dataset da movielens
-#
-def loadMovieLens( path='../data/movielens' ):
-	
-	# Get movie titles
-	movies={}
-	for line in open( path + '/u.item' ):
-		(id, title) = line.split( '|' )[0:2]
-		movies[id]=title
-	
-	# Load data
-	prefs={}
-	for line in open( path + '/u.data' ):
-		(user, movieid, rating, ts) = line.split('\t')
-		prefs.setdefault( user, {} )
-		prefs[user][movies[movieid]] = float( rating )
-	
-	return prefs
-
 #prefs = loadMovieLens()
 #for (m, r) in prefs['196'].items():
 #	print m, ":", r
 
-bbb_data = filterByMinViews( loadGloboCom() )
+views = filterByMinViews( loadGloboCom() )
+
+train, test = splitTrainTest(views)
+
 #arrangeViewedDistributionPerUser ( raw_data )
 
 #api = webmedia.API()

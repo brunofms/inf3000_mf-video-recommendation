@@ -1,117 +1,125 @@
-from operator import itemgetter
-import webmedia
+import numpy
 
 #
-# carrega o dataset da globo.com
+# carrega o dataset da globo.com (bbb)
 #
-def loadGloboCom( path='../data/globocom/bbb' ):
+def load_globocom( path='../data/globocom/bbb' ):
 	
-	# Load data
-	views={}
+	# Load training data
+	train={}
+	for line in open( path + '/bbb.mar.1000.base' ):
+		(user_utma, video_id, view) = line.strip().split('\t')
+		train.setdefault( user_utma, {} )
+		train[user_utma][video_id] = float( view )
 	
-	for line in open( path + '/bbb.mar.10000.data' ):
+	# Load training data
+	test={}
+	for line in open( path + '/bbb.mar.1000.test' ):
+		(user_utma, video_id, view) = line.strip().split('\t')
+		test.setdefault( user_utma, {} )
+		test[user_utma][video_id] = float( view )
+	
+	return train, test
+
+#
+# carrega o dataset da movielens
+#
+def load_movielens( path='../data/movielens/100k' ):
+	
+	# Load training data
+	train={}
+	for line in open( path + '/ua.base' ):
+		(user, movieid, rating, ts) = line.strip().split('\t')
+		train.setdefault( user, {} )
+		train[user][movieid] = float( rating )
+	
+	# Load training data
+	test={}
+	for line in open( path + '/ua.test' ):
+		(user, movieid, rating, ts) = line.strip().split('\t')
+		test.setdefault( user, {} )
+		test[user][movieid] = float( rating )
+	
+	return train, test
+
+#
+#
+#
+def build_indexes(data):
+	
+	user_index = {}
+	movie_index = {}
+	
+	i = 0
+	j = 0
+	nr = 0
+	for user_ratings in data.items():
 		
-		try:
-			(ts, video_id, user) = line.strip().split( '\t' )
-			views.setdefault( user, {} )
-			views[user][video_id] = 1.0
-			
-		except 	Exception, why:
-			pass
-	
-	return views
+		user_id = user_ratings[0]
+		user_index[user_id] = i
+		i = i + 1
+		
+		ratings = user_ratings[1]
+		nr = nr + len(ratings)
+		
+		for movie_id in ratings.keys():
+			if not movie_index.has_key(movie_id):
+				movie_index[movie_id] = j
+				j = j + 1
 
-#
-# remove usuarios que viram menos que MIN videos
-#
-def filterByMinViews( view_data, min=14 ):
+	nu = len(user_index)
+	nm = len(movie_index)
+	print "%d users" % nu
+	print "%d movies" % nm
+	print "%d movies rated\n" % nr
 	
-	#Load data
-	filtered_views={}
-	
-	f = open( '../data/globocom/file.txt', 'w' )
-	
-	for u, v in view_data.items():
-		try:
-			if len(v) > min:
-				filtered_views.setdefault( u, {} )
-				filtered_views[u] = v
-		except:
-			pass
-				
-	
-	return filtered_views
+	return user_index, movie_index
 
 #
 #
 #
-def splitTrainTest (view_data):
+def format_data(user_index, movie_index, data, K):
+
+	dimension = (len(user_index), len(movie_index))
+	R = numpy.zeros(dimension)
+
+	for user_ratings in data.items():
+		user = user_ratings[0]
+		ratings = user_ratings[1]
+		for movie_id in ratings.keys():
+			R[user_index[user]][movie_index[movie_id]] = float( data[user][movie_id] ) # 1.0
+
+	N = len(R)
+	M = len(R[0])
+
+	P = numpy.random.rand(N,K)
+	Q = numpy.random.rand(M,K)
 	
-	train_data = {}
-	test_data = {}
-	rating_cnt = {}
-	testcnt = 0
-	
-	for u, v in view_data.items():
-		try:
-			if len(v) > min:
-				filtered_views.setdefault( u, {} )
-				filtered_views[u] = v
-		except:
-			pass	
-	
-	return train_data, test_data
+	return R, P, Q
 
 #
-# verifica a distribuicao da quantidade de videos pela quantidade de usuarios
 #
-def arrangeViewedDistributionPerUser ( view_data ):
+#
+def init_data(user_index, movie_index, data, K, init_stdev=0.1):
 	
-	user_count = {}
-	viewed_count = {}
+	W = {}
+	Q = {}
 	
-	for user, videos in view_data.items():
-		try:
-			user_count[user] = user_count.get( user, 0 ) + len(videos)
-		except:
-			pass
-			
-	for user, viewed in user_count.items():
-		try:
-			viewed_count[viewed] = viewed_count.get( viewed, 0 ) + 1
-		except:
-			pass
+	dimension = (len(user_index), len(movie_index))
+	R = numpy.zeros(dimension)
+
+	for user_ratings in data.items():
+		user = user_ratings[0]
+		ratings = user_ratings[1]
+		for movie_id in ratings.keys():
+			R[user_index[user]][movie_index[movie_id]] = float( data[user][movie_id] ) # 1.0
 	
-	f = open( '../data/globocom/file.txt', 'w' )
-	
-	for viewed, count in viewed_count.items():
-		f.write( str(viewed) + "\t" + str(count) + "\n" )
-	
-	f.close()
+	for f in xrange(K):
+		W.setdefault( f, {} )
+		for i in xrange(len(user_index)):
+			W[f][i] = init_stdev
+		Q.setdefault( f, {} )
+		for j in xrange(len(movie_index)):
+			Q[f][j] = init_stdev
 
-#prefs = loadMovieLens()
-#for (m, r) in prefs['196'].items():
-#	print m, ":", r
-
-views = filterByMinViews( loadGloboCom() )
-
-train, test = splitTrainTest(views)
-
-#arrangeViewedDistributionPerUser ( raw_data )
-
-#api = webmedia.API()
-# users = 0
-# ratings = 0
-# for u, v in views.items():
-# 	try:
-# 		users = users + 1
-# 		for v, r in v.items():
-# 			ratings = ratings + 1
-#				print u, v, r
-#				video = api.get_video(v)
-#				print u, "::", video['title'], "::", r
-# 	except:
-# 		pass
-# 
-# print "no. users = ", users
-# print "no. ratings = ", ratings
+	return R, W, Q

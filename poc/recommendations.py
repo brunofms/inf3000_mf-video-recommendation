@@ -1,5 +1,5 @@
 from math import sqrt
-import numpy
+import numpy, time
 
 """
 @INPUT:
@@ -32,14 +32,85 @@ def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta=0.02):
 					for k in xrange(K):
 						e = e + (beta/2) * ( pow( P[i][k], 2 ) + pow( Q[k][j], 2 ) )
 		if step % 500 == 0:
-			print "Progress: %d%%" % (step*100/steps)
+			print "Progress: %d%%, %s" % (step*100/steps, time.strftime('%X'))
 		if e < 0.001:
 			break
 	return P, Q.T
 
 """
 """
-def test_results (nR, data):
+def learn_factors (R, W, Q, K, min_improvement=0.0001, learn_rate=0.01, regularization=0.055):
+	
+	#init contants
+	min_epochs = 10
+	max_epochs = 20
+	
+	#init variables
+	rmse_last = 0
+	rmse = 2.0
+	
+	
+	for f in range(K):
+		
+		e = 0
+		
+		print "Calculating feature %d" % (f+1)
+		
+		# Keep looping until you have passed a minimum number 
+        # of epochs or have stopped making significant progress
+		#for e in range(min_epochs):
+		while (e < min_epochs or rmse <= rmse_last - min_improvement) and e < max_epochs:
+			
+			print "\tEpoch: %d" % (e+1)
+			
+			n = 0
+			sq = 0
+			rmse_last = rmse
+			
+			for i in xrange(len(R)):
+				for j in xrange(len(R[i])):
+					
+					# Predict rating and calc error
+					err = R[i][j] - predict_rating(i, j, f, W, Q)
+					sq = sq + (err**2)
+					n = n + 1
+
+					# Cache off old feature values
+					cf = W[f][i]
+					mf = Q[f][j]
+
+					# Cross-train the features
+					W[f][i] = W[f][i] + learn_rate * (err * mf - regularization * cf)
+					Q[f][j] = Q[f][j] + learn_rate * (err * cf - regularization * mf)
+			
+			rmse = sqrt(sq/n)
+			
+			print "\t\trmse=%f" % rmse
+			
+			e = e + 1
+			
+#			if rmse > rmse_last - min_improvement:
+#				break
+	
+"""
+"""
+def predict_rating (i, j, f, W, Q):
+	
+	result = 3.5 # global bias
+	
+	# Add contribution of current feature
+	result = result + W[f][i] * Q[f][j]
+	
+	if result > 5.0:
+		result = 5.0
+	if result < 1.0:
+		result = 1.0
+	
+	return result
+
+"""
+"""
+def test_predictions (nR, data, user_index, movie_index):
 	
 	i=0
 	err = 0.0
@@ -53,6 +124,8 @@ def test_results (nR, data):
 				rated = float( data[user][movie_id] ) # 1.0
 				err = err + (rated - predicted)**2
 				i = i + 1
+				if i % 300 == 0:
+					print 'err: %f - rated: %f, predicted: %f' % (err, rated, predicted)
 	
 	mse = err/i
 	rmse = sqrt(mse)

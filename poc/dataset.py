@@ -7,14 +7,14 @@ def load_globocom( path='../data/globocom/bbb' ):
 	
 	# Load training data
 	train={}
-	for line in open( path + '/bbb.mar.1000.base' ):
+	for line in open( path + '/bbb.mar.10000.base' ):
 		(user_utma, video_id, view) = line.strip().split('\t')
 		train.setdefault( user_utma, {} )
 		train[user_utma][video_id] = float( view )
 	
 	# Load training data
 	test={}
-	for line in open( path + '/bbb.mar.1000.test' ):
+	for line in open( path + '/bbb.mar.10000.test' ):
 		(user_utma, video_id, view) = line.strip().split('\t')
 		test.setdefault( user_utma, {} )
 		test[user_utma][video_id] = float( view )
@@ -117,9 +117,11 @@ def init_data(user_index, movie_index, data, K, init_stdev=0.1):
 	for f in xrange(K):
 		W.setdefault( f, {} )
 		for i in xrange(len(user_index)):
-			W[f][i] = init_stdev
+#			W[f][i] = init_stdev
+			W[f][i] = numpy.random.randn(1)[0]
 		Q.setdefault( f, {} )
 		for j in xrange(len(movie_index)):
-			Q[f][j] = init_stdev
+#			Q[f][j] = init_stdev
+			Q[f][j] = numpy.random.randn(1)[0]
 
 	return R, W, Q

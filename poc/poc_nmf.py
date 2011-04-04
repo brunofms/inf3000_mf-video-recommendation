@@ -15,7 +15,7 @@ def difcost(a, b):
 
 """
 """
-def factorize(v, pc=10, iter=200):
+def factorize(v, pc=10, iter=5):
 	ic=shape(v)[0]
 	fc=shape(v)[1]
 
@@ -64,7 +64,7 @@ def test_factorization (nR, data, user_index, movie_index):
 				rated = float( data[user][movie_id] ) # 1.0
 				err = err + (rated - predicted)**2
 				i = i + 1
-				if i % 50 == 0:
+				if i % 200 == 0:
 					print 'err: %f - rated: %f, predicted: %f' % (err, rated, predicted)
 				# if user_index[user]<=2 and movie_index[movie_id]<=2:
 				# 					print "train[%d][%d]: rated=%f predicted=%f" % (user_index[user], movie_index[movie_id], data[user][movie_id],  nR[user_index[user],movie_index[movie_id]])
@@ -74,47 +74,47 @@ def test_factorization (nR, data, user_index, movie_index):
 
 	return rmse
 
-def showfeatures(w, h, user_index, movie_index, out='features.txt'):
+def find_key(dic, val):
+    """return the key of dictionary dic given the value"""
+    return [k for k, v in dic.iteritems() if v == val][0]	
+
+def showfeatures(w, h, user_index, movie_index, users, movies, out='features.txt'):
 	outfile=file(out, 'w')
-	pc,wc=shape(h)
-	toppatterns=[[] for i in range(len(user_index))]
-	patternnames=[]
+	wc,pc=shape(w)
 	
 	# Loop over all the features
-	for i in range(pc):
-		slist=[]
-		# Create a list of words and their weights
-		for j in range(wc):
-			slist.append((h[i,j],movie_index[j]))
-		# Reverse sort the word list
-		slist.sort()
-		slist.reverse()
+	for f in range(pc):
+		
+		outfile.write('Feature '+str(f)+':\n')
+		
+		ulist=[]
+		# Create a list of users and their weights
+		for u in range(wc):
+			ulist.append((w[u,f],find_key(user_index,u)))
+		# Reverse sort the users list
+		ulist.sort()
+		ulist.reverse()
 		
 		# Print the first six elements
-		n=[s[1] for s in slist[0:6]]
+		n=[u[1] for u in ulist[0:6]]
 		outfile.write(str(n)+'\n')
-		patternnames.append(n)
 		
-		#Create a list of articles for this feature
-		flist=[]
-		for j in range(len(user_index)):
-			# Add the article with its weight
-			flist.append((w[i,j],user_index[j]))
-			toppatterns[j].append((w[i,j],i,user_index[j]))
+		#Create a list of movies for this feature
+		mlist=[]
+		for m in range(len(movie_index)):
+			# Add the movie with its weight
+			mlist.append((h[f,m],movies[find_key(movie_index,m)]['title']))
 		
 		# Reverse sort the list
-		flist.sort()
-		flist.reverse()
+		mlist.sort()
+		mlist.reverse()
 		
-		# Show the top 3 articles
-		for f in flist[0:3]:
-			outfile.write(str(f)+'\n')
+		# Show the top 3 movies
+		for m in mlist[0:3]:
+			outfile.write(str(m)+'\n')
 		outfile.write('\n')
 	
 	outfile.close()
-	
-	# Return the pattern names for later use
-	return toppatterns, patternnames
 
 if __name__ == "__main__":
 	
@@ -122,11 +122,11 @@ if __name__ == "__main__":
 	
 	#load dataset
 #	train, test = load_globocom()
-	train, test = load_movielens()
+	train, test, users, movies = load_movielens()
 	user_index, movie_index = build_indexes( train )
 	
 	#train dataset
-	K = 20 # number of latent variables
+	K = 10 # number of latent variables
 #	R, P, Q = format_data(user_index, movie_index, train, K)
 #	nP, nQ = matrix_factorization(R, P, Q, K)
 #	nR = numpy.dot(nP, nQ.T)
@@ -136,8 +136,8 @@ if __name__ == "__main__":
 	
 	print "Start testing: %s\n" % time.strftime('%X %x %Z')
 
-	print R
-	print nR
+	# print R
+	# print nR
 	
 	#test results
 	rmse = test_factorization(nR, train, user_index, movie_index)
@@ -147,3 +147,5 @@ if __name__ == "__main__":
 	print "\nRMSE test: %s" % rmse
 	
 	print "\nEnd time: %s" % time.strftime('%X %x %Z')
+	
+	topp,pn=showfeatures(nW, nQ, user_index, movie_index, users, movies)

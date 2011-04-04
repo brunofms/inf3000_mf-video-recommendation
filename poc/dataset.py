@@ -30,6 +30,7 @@ def load_movielens( path='../data/movielens/100k' ):
 	train={}
 	for line in open( path + '/ua.base' ):
 		(user, movieid, rating, ts) = line.strip().split('\t')
+		# (user, movieid, rating, ts) = line.strip().split('::')
 		train.setdefault( user, {} )
 		train[user][movieid] = float( rating )
 	
@@ -37,10 +38,26 @@ def load_movielens( path='../data/movielens/100k' ):
 	test={}
 	for line in open( path + '/ua.test' ):
 		(user, movieid, rating, ts) = line.strip().split('\t')
+		# (user, movieid, rating, ts) = line.strip().split('::')
 		test.setdefault( user, {} )
 		test[user][movieid] = float( rating )
 	
-	return train, test
+	# Load users data
+	users={}
+	for line in open( path + '/u.user' ):
+		(user_id, age, gender, occupation, zip_code) = line.strip().split('|')
+		users.setdefault( user_id, {} )
+		users[user_id] = {"age":age,"gender":gender,"occupation":occupation,"zip_code":zip_code}
+	
+	# Load movie data
+	movies={}
+	for line in open( path + '/u.item' ):
+		movie_data = line.strip().split('|')
+		movies.setdefault( movie_data[0], {} )
+		movies[movie_data[0]] = {"title":movie_data[1],"release_date":movie_data[2]}
+	
+	
+	return train, test, users, movies
 
 #
 #

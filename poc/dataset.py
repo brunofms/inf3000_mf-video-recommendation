@@ -1,4 +1,5 @@
-import numpy
+from scipy.sparse import lil_matrix
+import numpy, sys
 
 #
 # carrega o dataset da globo.com (bbb)
@@ -89,6 +90,7 @@ def build_indexes(data):
 	print "%d users" % nu
 	print "%d movies" % nm
 	print "%d movies rated\n" % nr
+	sys.stdout.flush()
 	
 	return user_index, movie_index
 
@@ -142,3 +144,28 @@ def init_data(user_index, movie_index, data, K, init_stdev=0.1):
 			Q[f][j] = numpy.random.randn(1)[0]
 
 	return R, W, Q
+
+def init_sparse_data(user_index, movie_index, data):
+
+	R = lil_matrix((len(user_index), len(movie_index)))
+	
+	for user_ratings in data.items():
+		user = user_ratings[0]
+		ratings = user_ratings[1]
+		for movie_id in ratings.keys():
+			R[user_index[user],movie_index[movie_id]] = float( data[user][movie_id] ) # 1.0
+	
+	return R
+
+def init_data_matrix(user_index, movie_index, data):
+
+	dimension = (len(user_index), len(movie_index))
+	R = numpy.zeros(dimension)
+
+	for user_ratings in data.items():
+		user = user_ratings[0]
+		ratings = user_ratings[1]
+		for movie_id in ratings.keys():
+			R[user_index[user]][movie_index[movie_id]] = float( data[user][movie_id] ) # 1.0
+
+	return R

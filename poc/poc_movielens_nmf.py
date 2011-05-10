@@ -1,48 +1,52 @@
 from dataset import *
 from recommendations import *
-import numpy, time
+from numpy import *
+import scipy, time
 
 """
 """
-def difcost(a, b):
+def difcost(a, b, w, h):
+	
+ 	a = a.todense()
+	
 	dif=0
 	# Loop over every row and column in the matrix
 	for i in range(shape(a)[0]):
 		for j in range(shape(a)[1]):
 			# Add together the differences
-			dif+=pow(a[i,j]-b[i,j],2)
+			dif=dif+pow(a[i,j]-b[i,j],2)#+3/2*(pow(linalg.norm(w),2)+pow(linalg.norm(h),2))
 	return dif
 
 """
 """
-def factorize(v, pc=10, iter=5):
+def factorize(v, pc=10, iter=100):
 	ic=shape(v)[0]
 	fc=shape(v)[1]
 
 	#Initialize the weight and feature matrices with random values
-	w=matrix([[random.random() for j in range(pc)] for i in range(ic)])
-	h=matrix([[random.random() for i in range(fc)] for j in range(pc)])
+	w=matrix([[random.random() for f in range(pc)] for u in range(ic)])
+	h=matrix([[random.random() for m in range(fc)] for f in range(pc)])
 
 	# Perform operation a maximum of item times
 	for i in range(iter):
 		wh=w*h
 	
 		# Calculate the current difference
-		cost=difcost(v, wh)		
-		if i%5==0: print cost
+		cost=difcost(v, wh, w, h)
+		if i%10==0: print "%d/%d: %f" % (i, iter, cost)
 	
 		# Terminate if the matrix has been fully factorized
 		if cost==0: break
 	
 		# Update feature matrix
 		hn=(transpose(w)*v)
-		hd=(transpose(w)*w*h)
+		hd=(transpose(w)*w*h)+0.001
 	
 		h=matrix(array(h)*array(hn)/array(hd))
 	
 		# Update weights matrix
 		wn=(v*transpose(h))
-		wd=(w*h*transpose(h))
+		wd=(w*h*transpose(h))+0.001
 	
 		w=matrix(array(w)*array(wn)/array(wd))
 
@@ -96,7 +100,7 @@ def showfeatures(w, h, user_index, movie_index, users, movies, out='features.txt
 		ulist.reverse()
 		
 		# Print the first six elements
-		n=[u[1] for u in ulist[0:6]]
+		n=[u[1] for u in ulist[0:5]]
 		outfile.write(str(n)+'\n')
 		
 		#Create a list of movies for this feature
@@ -110,7 +114,7 @@ def showfeatures(w, h, user_index, movie_index, users, movies, out='features.txt
 		mlist.reverse()
 		
 		# Show the top 3 movies
-		for m in mlist[0:3]:
+		for m in mlist[0:5]:
 			outfile.write(str(m)+'\n')
 		outfile.write('\n')
 	
@@ -126,11 +130,8 @@ if __name__ == "__main__":
 	user_index, movie_index = build_indexes( train )
 	
 	#train dataset
-	K = 10 # number of latent variables
-#	R, P, Q = format_data(user_index, movie_index, train, K)
-#	nP, nQ = matrix_factorization(R, P, Q, K)
-#	nR = numpy.dot(nP, nQ.T)
-	R, W, Q = init_data(user_index, movie_index, train, K)
+	K = 20 # number of latent variables
+	R = init_sparse_data(user_index, movie_index, train)
 	nW, nQ = factorize(R, K)
 	nR=nW*nQ
 	
@@ -139,13 +140,14 @@ if __name__ == "__main__":
 	# print R
 	# print nR
 	
-	#test results
+	#validate on training data
 	rmse = test_factorization(nR, train, user_index, movie_index)
 	print "\nRMSE treino: %s" % rmse
+
+	#validate on testing data	
 	rmse = test_factorization(nR, test, user_index, movie_index)
-#	rmse = process_test (test, nW, nQ, user_index, movie_index, K)
 	print "\nRMSE test: %s" % rmse
 	
 	print "\nEnd time: %s" % time.strftime('%X %x %Z')
 	
-	topp,pn=showfeatures(nW, nQ, user_index, movie_index, users, movies)
+	showfeatures(nW, nQ, user_index, movie_index, users, movies)

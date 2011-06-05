@@ -8,14 +8,14 @@ def load_globocom( path='../data/globocom/bbb' ):
 	
 	# Load training data
 	train={}
-	for line in open( path + '/bbb.mar.10000.base' ):
+	for line in open( path + '/bbb.mar.100000.base' ):
 		(user_utma, video_id, view) = line.strip().split('\t')
 		train.setdefault( user_utma, {} )
 		train[user_utma][video_id] = float( view )
 	
 	# Load training data
 	test={}
-	for line in open( path + '/bbb.mar.10000.test' ):
+	for line in open( path + '/bbb.mar.100000.test' ):
 		(user_utma, video_id, view) = line.strip().split('\t')
 		test.setdefault( user_utma, {} )
 		test[user_utma][video_id] = float( view )

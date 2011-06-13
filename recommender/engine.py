@@ -36,19 +36,19 @@ class MFEngine:
 	def load_globocom(self, path='../data/globocom/auto_esporte/auto_esporte.may'):
 	# def load_globocom(self, path='../data/globocom/bbb/bbb.mar.1000000'):
 		
-		# load training data
+		# load train data
 		train={}
 		for line in open(path + '.base'):
-			(user_utma, video_id, view) = line.strip().split('\t')
+			(user_utma, video_id, ts_bin) = line.strip().split('\t')
 			train.setdefault( user_utma, {} )
-			train[user_utma][video_id] = float( view )
+			train[user_utma][video_id] = ts_bin
 		
-		# load training data
+		# load test data
 		test={}
 		for line in open( path + '.test' ):
-			(user_utma, video_id, view) = line.strip().split('\t')
+			(user_utma, video_id, ts_bin) = line.strip().split('\t')
 			test.setdefault( user_utma, {} )
-			test[user_utma][video_id] = float( view )
+			test[user_utma][video_id] = ts_bin
 		
 		# Load video data
 		videos={}
@@ -111,9 +111,11 @@ class MFEngine:
 
 		user_index = {}
 		video_index = {}
+		bin_index = {}
 
 		i = 0
 		j = 0
+		k = 0
 		nr = 0
 		for user_ratings in data.items():
 
@@ -128,17 +130,23 @@ class MFEngine:
 				if not video_index.has_key(video_id):
 					video_index[video_id] = j
 					j = j + 1
+				if not bin_index.has_key(ratings[video_id]):
+					bin_index[ratings[video_id]] = k
+					k = k + 1
 
 		nu = len(user_index)
 		nv = len(video_index)
+		nb = len(bin_index)
 		
 		print "%d users" % nu
 		print "%d videos" % nv
+		print "%d bins" % nb
 		print "%d videos viewed\n" % nr
 		sys.stdout.flush()
 		
 		self._user_index=user_index
 		self._video_index=video_index
+		self._bin_index=bin_index
 
 	"""
 	
@@ -147,21 +155,30 @@ class MFEngine:
 		
 		user_index = self._user_index
 		video_index = self._video_index
+		bin_index = self._bin_index
 		data = self._train
 
 		dimension = (len(user_index), len(video_index))
+		md_dimension = (len(video_index), len(bin_index))
 		R = numpy.zeros(dimension)
+		RB = numpy.zeros(dimension)
+		MD = numpy.zeros(md_dimension)
 
 		for user_views in data.items():
 			user = user_views[0]
 			views = user_views[1]
+			bin 
 			for video_id in views.keys():
-				R[user_index[user]][video_index[video_id]] = float( data[user][video_id] ) # 1.0
+				R[user_index[user]][video_index[video_id]] = 1.0 # 1.0
+				RB[user_index[user]][video_index[video_id]] = float( bin_index[data[user][video_id]] ) # bin
+				MD[video_index[video_id]][bin_index[data[user][video_id]]] = 1.0
 
 		self._R = R
+		self._RB = RB
+		self._MD = MD
 
 	"""
-	
+	Train features using Weighted Matrix Factorization
 	"""
 	def learn_factors_wmf(self, n_features, max_e=50, lrate=0.001, regularization=0.02):
 		
@@ -228,11 +245,13 @@ class MFEngine:
 	
 	
 	"""
-	Train features
+	Train features using Simon Funk's SVD
 	"""
-	def learn_factors_sfunk (self, n_features, min_e=30, max_e=200, lrate=0.001, regularization=0.02):
+	def learn_factors_sfunk (self, n_features, min_e=30, max_e=50, lrate=0.001, regularization=0.02):
 		
 		R = self._R
+		RB = self._RB
+		MD = self._MD
 
 		# init contants
 		min_improvement = 0.0001
@@ -243,18 +262,26 @@ class MFEngine:
 
 		n_users = numpy.shape(R)[0]
 		n_videos = numpy.shape(R)[1]
+		
+		n_bins = numpy.shape(MD)[1]
 
-		# initialize the weight and feature matrices with random values
+		# initialize the weight and feature matrices with random values :: viewing
 		W = numpy.matrix([[numpy.sqrt(0.5/max_e) + random.uniform(-0.005, +0.005) for f in range(n_features)] for u in range(n_users)])
 		Q = numpy.matrix([[numpy.sqrt(0.5/max_e) + random.uniform(-0.005, +0.005) for m in range(n_videos)] for f in range(n_features)])
+
+		# initialize the weight and feature matrices with random values :: viewing data
+		MF = numpy.matrix([[numpy.sqrt(0.5/max_e) + random.uniform(-0.005, +0.005) for k in range(n_features)] for u in range(n_videos)])
+		DF = numpy.matrix([[numpy.sqrt(0.5/max_e) + random.uniform(-0.005, +0.005) for k in range(n_bins)] for u in range(n_features)])
 		
 		# initialize bias
-		u_bias = [0.0 for u in range(n_users)]
-		v_bias = [0.0 for v in range(n_videos)]
+		u_bias = [numpy.sqrt(0.5/max_e) + random.uniform(-0.005, +0.005) for u in range(n_users)]
+		v_bias = [numpy.sqrt(0.5/max_e) + random.uniform(-0.005, +0.005) for v in range(n_videos)]
 
 		# initialize features cache
 		dimension = (n_users, n_videos)
+		md_dimension = (n_videos, n_bins)
 		cache_R = numpy.zeros(dimension)
+		cache_MD = numpy.zeros(md_dimension)
 
 		# init variables
 		rmse = 1000	
@@ -281,11 +308,17 @@ class MFEngine:
 
 							# predict rating and calc error
 							rated = R[i][j]
-							predicted = self._predict_rating_for_feature(i, j, f, W, Q, cache_R, 1.0) #+ u_bias[i] + v_bias[j]
+							bin = RB[i][j]
+							t_v_bias = numpy.dot(MF[j,:], DF[:,bin]) # TODO: cache features
+							predicted = self._predict_rating_for_feature(i, j, f, W, Q, cache_R, 1.0) \
+								+ u_bias[i] \
+								+ v_bias[j] 
+								# + self._predict_temporal_effect_for_feature(j, bin, f, MF, DF, cache_MD, 1.0)
+								
 							err = rated - predicted
 
 							if i==0 and (j==0 or j==1):
-								print 'i:%d, j:%d :: rated = %f, predicted = %f (w= %f, q= %f, u_bias= %f, v_bias= %f), err = %f' % (i, j, rated, predicted, W[i,f], Q[f,j], u_bias[i], v_bias[j], err)
+								print 'i:%d, j:%d :: rated = %f, predicted = %f (w= %f, q= %f, u_bias= %f, v_bias= %f, t_v_bias= %f), err = %f' % (i, j, rated, predicted, W[i,f], Q[f,j], u_bias[i], v_bias[j], t_v_bias, err)
 								sys.stdout.flush()
 
 							sq = sq + (err**2)
@@ -294,6 +327,18 @@ class MFEngine:
 							# update biases
 							u_bias[i] = u_bias[i] + 0.0009 * (err - 0.022 * u_bias[i])
 							v_bias[j] = v_bias[j] + 0.0009 * (err - 0.022 * v_bias[j])
+							
+							# # update temporal biases
+							# for k in range(3):
+							# for b in xrange(n_bins):
+							# 
+							# 	# cache off old feature movie-date values
+							# 	mf = MF[j,f]
+							# 	df = DF[f,b]
+							# 
+							# 	# cross-train the movie-date features
+							# 	MF[j,f] = mf + 0.00004 * (err - 0.022 * df)
+							# 	DF[f,b] = df + 0.00004 * (err - 0.022 * mf)
 
 							# cache off old feature values
 							cf = W[i,f]
@@ -315,11 +360,18 @@ class MFEngine:
 				for j in xrange(n_videos):
 					if R[i][j] > 0:
 						cache_R[i,j] = self._predict_rating_for_feature(i, j, f, W, Q, cache_R, 0.0)
+			
+			# for j in xrange(n_videos):
+			# 	for b in xrange(n_bins):
+			# 		if MD[j][b] > 0:
+			# 			cache_MD[j][b] = self._predict_temporal_effect_for_feature(j, b, f, MF, DF, cache_MD, 0.0)
 
 		self._u_bias = u_bias
 		self._v_bias = v_bias
 		self._W = W
 		self._Q = Q
+		self._MF = MF
+		self._DF = DF
 	
 	"""
 	Test dataset
@@ -336,8 +388,9 @@ class MFEngine:
 				views = video_views[1]
 				for video_id in views.keys():
 					if self._user_index.has_key(user) and self._video_index.has_key(video_id):
-						predicted = self._predict_rating( self._user_index[user], self._video_index[video_id] )
-						rated = float( data[user][video_id] )
+						predicted = self._predict_rating( self._user_index[user], self._video_index[video_id], self._bin_index[data[user][video_id]] )
+						# rated = float( data[user][video_id] )
+						rated = 1.0
 						err = err + (rated - predicted)**2
 						i = i + 1
 						if i % 500 == 0:
@@ -417,11 +470,30 @@ class MFEngine:
 			result = result + (self._n_features - f - 1) * pow (0.1, 2)
 
 		return result
-	
+
+	"""
+	Add contribution of each feature to the temporal effect biases
+	"""
+	def _predict_temporal_effect_for_feature (self, j, b, f, MF, DF, cache_MD, trailing):
+
+		if cache_MD[j,b] > 0:
+			result = cache_MD[j,b]
+		else:
+			result = 0.0 # global bias - PseudoAvg
+
+		# add contribution of current feature
+		result = result + MF[j,f] * DF[f,b]
+
+		# add up trailing defaults values
+		if trailing > 0:
+			result = result + (self._n_features - f - 1) * pow (0.1, 2)
+
+		return result
+
 	"""
 	Predict rating
 	"""
-	def _predict_rating (self, i, j):
+	def _predict_rating (self, i, j, bin):
 
 		result = 0.0 # global bias - PseudoAvg
 
@@ -429,7 +501,10 @@ class MFEngine:
 		result = result + numpy.dot(self._W[i,:], self._Q[:,j])
 		
 		# add contribution of user and video biases
-		# result = result + self._u_bias[i] + self._v_bias[j]
+		result = result + self._u_bias[i] + self._v_bias[j]
+		
+		# add contribution of temporal video biases
+		# result = result + numpy.dot(self._MF[j,:], self._DF[:,bin])
 
 		return result
 	
@@ -447,12 +522,12 @@ if __name__ == "__main__":
 	engine = MFEngine(True)
 	
 	# TODO: dao
-	# engine.load_globocom()
-	engine.load_movielens()
+	engine.load_globocom()
+	# engine.load_movielens()
 	engine.build_indexes()
 	engine.init_data_matrix()
 	
-	engine.learn_factors_sfunk(30)
+	engine.learn_factors_sfunk(5)
 	# engine.learn_factors_wmf(10,200)
 	engine.process_test()
 	
